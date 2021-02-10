@@ -14,7 +14,8 @@ class SeleniumMiddleware:
     """Scrapy middleware handling the requests using selenium"""
 
     def __init__(self, driver_name, driver_executable_path,
-        browser_executable_path, command_executor, driver_arguments):
+        browser_executable_path, command_executor, driver_arguments
+        driver_preferences):
         """Initialize the selenium webdriver
 
         Parameters
@@ -25,6 +26,8 @@ class SeleniumMiddleware:
             The path of the executable binary of the driver
         driver_arguments: list
             A list of arguments to initialize the driver
+        driver_preferences: dict 
+            A dictionary of key/value preferences for the driver
         browser_executable_path: str
             The path of the executable binary of the browser
         command_executor: str
@@ -45,6 +48,9 @@ class SeleniumMiddleware:
             driver_options.binary_location = browser_executable_path
         for argument in driver_arguments:
             driver_options.add_argument(argument)
+        if driver_name == 'firefox':
+            for k, v in driver_preferences:
+                driver_options.set_preference(k, v)
 
         driver_kwargs = {
             'executable_path': driver_executable_path,
@@ -74,6 +80,7 @@ class SeleniumMiddleware:
         browser_executable_path = crawler.settings.get('SELENIUM_BROWSER_EXECUTABLE_PATH')
         command_executor = crawler.settings.get('SELENIUM_COMMAND_EXECUTOR')
         driver_arguments = crawler.settings.get('SELENIUM_DRIVER_ARGUMENTS')
+        driver_preferences = crawler.settings.get('SELENIUM_DRIVER_PREFERENCES')
 
         if driver_name is None:
             raise NotConfigured('SELENIUM_DRIVER_NAME must be set')
@@ -87,7 +94,8 @@ class SeleniumMiddleware:
             driver_executable_path=driver_executable_path,
             browser_executable_path=browser_executable_path,
             command_executor=command_executor,
-            driver_arguments=driver_arguments
+            driver_arguments=driver_arguments,
+            driver_preferences=driver_preferences,
         )
 
         crawler.signals.connect(middleware.spider_closed, signals.spider_closed)
