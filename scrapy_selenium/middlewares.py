@@ -1,6 +1,8 @@
 """This module contains the ``SeleniumMiddleware`` scrapy middleware"""
 
 from importlib import import_module
+import random
+import time
 
 from scrapy import signals
 from scrapy.exceptions import NotConfigured
@@ -107,6 +109,13 @@ class SeleniumMiddleware:
 
         if not isinstance(request, SeleniumRequest):
             return None
+
+        delay = spider.settings.getint('DOWNLOAD_DELAY')
+        randomize_delay = spider.settings.getbool('RANDOMIZE_DOWNLOAD_DELAY')
+        if delay:
+            if randomize_delay:
+                delay = random.uniform(0.5 * delay, 1.5 * delay)
+            time.sleep(delay)
 
         self.driver.get(request.url)
 
