@@ -14,7 +14,7 @@ class SeleniumMiddleware:
     """Scrapy middleware handling the requests using selenium"""
 
     def __init__(self, driver_name, driver_executable_path,
-        browser_executable_path, command_executor, driver_arguments
+        browser_executable_path, command_executor, driver_arguments,
         driver_preferences):
         """Initialize the selenium webdriver
 
@@ -49,7 +49,7 @@ class SeleniumMiddleware:
         for argument in driver_arguments:
             driver_options.add_argument(argument)
         if driver_name == 'firefox':
-            for k, v in driver_preferences:
+            for k, v in driver_preferences.items():
                 driver_options.set_preference(k, v)
 
         driver_kwargs = {
