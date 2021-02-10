@@ -1,30 +1,29 @@
 """This module contains the packaging routine for the pybook package"""
 
 from setuptools import setup, find_packages
-try:
-    from pip.download import PipSession
-    from pip.req import parse_requirements
-except ImportError:
-    # It is quick hack to support pip 10 that has changed its internal
-    # structure of the modules.
-    from pip._internal.download import PipSession
-    from pip._internal.req.req_file import parse_requirements
-
 
 def get_requirements(source):
-    """Get the requirements from the given ``source``
+    with open(source) as f:
+        requirements = f.read().splitlines()
 
-    Parameters
-    ----------
-    source: str
-        The filename containing the requirements
+    required = []
+    dependency_links = []
+    # do not add to required lines pointing to git repositories
+    EGG_MARK = '#egg='
+    for line in requirements:
+        if line.startswith('-e git:') or line.startswith('-e git+') or \
+                line.startswith('git:') or line.startswith('git+'):
+            if EGG_MARK in line:
+                package_name = line[line.find(EGG_MARK) + len(EGG_MARK):]
+                required.append(package_name)
+                dependency_links.append(line)
+            else:
+                print('Dependency to a git repository should have the format:')
+                print('git+ssh://git@github.com/xxxxx/xxxxxx#egg=package_name')
+        else:
+            required.append(line)
 
-    """
-
-    install_reqs = parse_requirements(filename=source, session=PipSession())
-
-    return [str(ir.req) for ir in install_reqs]
-
+    return required
 
 setup(
     packages=find_packages(),
