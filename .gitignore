@@ -98,3 +98,6 @@ ENV/
 
 # MACOS stuff
 .DS_Store
+
+# vim
+.*.sw*

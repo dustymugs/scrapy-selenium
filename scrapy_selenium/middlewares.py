@@ -11,13 +11,20 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from .http import SeleniumRequest
 
-
 class SeleniumMiddleware:
     """Scrapy middleware handling the requests using selenium"""
 
-    def __init__(self, driver_name, driver_executable_path,
-        browser_executable_path, command_executor, driver_arguments,
-        driver_preferences):
+    def __init__(
+        self,
+        driver_name,
+        driver_executable_path,
+        browser_executable_path,
+        command_executor,
+        driver_arguments,
+        driver_preferences,
+        concurrent_requests,
+        concurrent_requests_per_domain,
+    ):
         """Initialize the selenium webdriver
 
         Parameters
@@ -28,7 +35,7 @@ class SeleniumMiddleware:
             The path of the executable binary of the driver
         driver_arguments: list
             A list of arguments to initialize the driver
-        driver_preferences: dict 
+        driver_preferences: dict
             A dictionary of key/value preferences for the driver
         browser_executable_path: str
             The path of the executable binary of the browser
@@ -54,24 +61,35 @@ class SeleniumMiddleware:
             for k, v in driver_preferences.items():
                 driver_options.set_preference(k, v)
 
-        driver_kwargs = {
+        self._command_executor = command_executor
+        self._driver_name = driver_name
+        self._driver_klass = driver_klass
+        self._driver_kwargs = {
             'executable_path': driver_executable_path,
             f'{driver_name}_options': driver_options
         }
 
+        self.replace_driver()
+
+    def replace_driver(self):
+        if hasattr(self, 'driver'):
+            self.driver.quit()
+
         # locally installed driver
-        if driver_executable_path is not None:
-            driver_kwargs = {
-                'executable_path': driver_executable_path,
-                f'{driver_name}_options': driver_options
-            }
-            self.driver = driver_klass(**driver_kwargs)
+        if self._driver_kwargs['executable_path'] is not None:
+            self.driver = self._driver_klass(**self._driver_kwargs)
         # remote driver
-        elif command_executor is not None:
+        elif self._command_executor is not None:
             from selenium import webdriver
-            capabilities = driver_options.to_capabilities()
-            self.driver = webdriver.Remote(command_executor=command_executor,
-                                           desired_capabilities=capabilities)
+            capabilities = self._driver_kwargs[f'{self._driver_name_options}'].to_capabilities()
+            self.driver = webdriver.Remote(
+                command_executor=self._command_executor,
+                desired_capabilities=capabilities
+            )
+
+        self.driver.replace_driver = self.replace_driver
+
+        return self.driver
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -83,6 +101,8 @@ class SeleniumMiddleware:
         command_executor = crawler.settings.get('SELENIUM_COMMAND_EXECUTOR')
         driver_arguments = crawler.settings.get('SELENIUM_DRIVER_ARGUMENTS')
         driver_preferences = crawler.settings.get('SELENIUM_DRIVER_PREFERENCES')
+        concurrent_requests = crawler.settings.getint('CONCURRENT_REQUESTS')
+        concurrent_requests_per_domain = crawler.settings.getint('CONCURRENT_REQUESTS_PER_DOMAIN')
 
         if driver_name is None:
             raise NotConfigured('SELENIUM_DRIVER_NAME must be set')
@@ -98,6 +118,8 @@ class SeleniumMiddleware:
             command_executor=command_executor,
             driver_arguments=driver_arguments,
             driver_preferences=driver_preferences,
+            concurrent_requests=concurrent_requests,
+            concurrent_requests_per_domain=concurrent_requests_per_domain,
         )
 
         crawler.signals.connect(middleware.spider_closed, signals.spider_closed)
@@ -154,4 +176,3 @@ class SeleniumMiddleware:
         """Shutdown the driver when spider is closed"""
 
         self.driver.quit()
-
