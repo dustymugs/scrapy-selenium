@@ -74,7 +74,7 @@ class SeleniumMiddleware:
         }
         if driver_name == 'firefox':
             if driver_profile is not None:
-            self._driver_kwargs['firefox_profile'] = driver_profile
+                self._driver_kwargs['firefox_profile'] = driver_profile
 
         self.replace_driver()
 
