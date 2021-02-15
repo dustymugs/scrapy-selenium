@@ -3,6 +3,7 @@
 from importlib import import_module
 import random
 import time
+import urllib3
 
 from scrapy import signals
 from scrapy.exceptions import NotConfigured
@@ -22,6 +23,7 @@ class SeleniumMiddleware:
         command_executor,
         driver_arguments,
         driver_preferences,
+        driver_profile,
         concurrent_requests,
         concurrent_requests_per_domain,
     ):
@@ -37,6 +39,8 @@ class SeleniumMiddleware:
             A list of arguments to initialize the driver
         driver_preferences: dict
             A dictionary of key/value preferences for the driver
+        driver_profile: dict
+            A string for the Directory of profile to clone for the driver
         browser_executable_path: str
             The path of the executable binary of the browser
         command_executor: str
@@ -66,18 +70,34 @@ class SeleniumMiddleware:
         self._driver_klass = driver_klass
         self._driver_kwargs = {
             'executable_path': driver_executable_path,
-            f'{driver_name}_options': driver_options
+            f'{driver_name}_options': driver_options,
         }
+        if driver_name == 'firefox':
+            if driver_profile is not None:
+            self._driver_kwargs['firefox_profile'] = driver_profile
 
         self.replace_driver()
 
     def replace_driver(self):
         if hasattr(self, 'driver'):
+            self.driver.delete_all_cookies()
             self.driver.quit()
 
         # locally installed driver
         if self._driver_kwargs['executable_path'] is not None:
             self.driver = self._driver_klass(**self._driver_kwargs)
+            self.driver.set_window_size(
+                random.uniform(1920 * 0.5, 1920),
+                random.uniform(1080 * 0.5, 1080),
+            )
+
+            # we replace the default PoolManager
+            self.driver.command_executor._conn.clear()
+            self.driver.command_executor._conn = urllib3.PoolManager(
+                timeout=self.driver.command_executor._timeout,
+                maxsize=1,
+                block=False,
+            )
         # remote driver
         elif self._command_executor is not None:
             from selenium import webdriver
@@ -101,6 +121,7 @@ class SeleniumMiddleware:
         command_executor = crawler.settings.get('SELENIUM_COMMAND_EXECUTOR')
         driver_arguments = crawler.settings.get('SELENIUM_DRIVER_ARGUMENTS')
         driver_preferences = crawler.settings.get('SELENIUM_DRIVER_PREFERENCES')
+        driver_profile = crawler.settings.get('SELENIUM_DRIVER_PROFILE')
         concurrent_requests = crawler.settings.getint('CONCURRENT_REQUESTS')
         concurrent_requests_per_domain = crawler.settings.getint('CONCURRENT_REQUESTS_PER_DOMAIN')
 
@@ -118,6 +139,7 @@ class SeleniumMiddleware:
             command_executor=command_executor,
             driver_arguments=driver_arguments,
             driver_preferences=driver_preferences,
+            driver_profile=driver_profile,
             concurrent_requests=concurrent_requests,
             concurrent_requests_per_domain=concurrent_requests_per_domain,
         )
@@ -139,8 +161,6 @@ class SeleniumMiddleware:
                 delay = random.uniform(0.5 * delay, 1.5 * delay)
             time.sleep(delay)
 
-        self.driver.get(request.url)
-
         for cookie_name, cookie_value in request.cookies.items():
             self.driver.add_cookie(
                 {
@@ -148,6 +168,8 @@ class SeleniumMiddleware:
                     'value': cookie_value
                 }
             )
+
+        self.driver.get(request.url)
 
         if request.wait_until:
             WebDriverWait(self.driver, request.wait_time).until(
